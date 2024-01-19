@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 // helpers
 const createUserToken = require('../helpers/create-user-token');
 const getToken = require('../helpers/get-token');
-const getUserById = require('../helpers/get-user-by-token');
+const getUserByToken = require('../helpers/get-user-by-token');
 
 module.exports = class UserController {
     static async register(req, res) {
@@ -138,7 +138,7 @@ module.exports = class UserController {
 
         //check if user exists
         const token = getToken(req);
-        const user = await getUserById(token);
+        const user = await getUserByToken(token);
 
         const { name, email, phone, password, confirmpassword } = req.body;
         let image = '';
@@ -148,6 +148,8 @@ module.exports = class UserController {
             res.status(422).json({ message: "O nome é obrigatório" });
             return;
         }
+
+        user.name = name;
 
         if (!email) {
             res.status(422).json({ message: "O email é obrigatório" });
@@ -169,16 +171,32 @@ module.exports = class UserController {
             return;
         }
 
-        if (!password) {
-            res.status(422).json({ message: "A senha é obrigatória" });
+        user.phone = phone;
+
+        if (password !== confirmpassword) {
+            res.status(422).json({ message: 'As senhas não conferem!' });
             return;
+        } else if (password === confirmpassword && password !== null) {
+            // creating password
+            const salt = await bcrypt.genSalt(12);
+            const passwordHash = await bcrypt.hash(password, salt);
+
+            user.password = passwordHash;
         }
 
-        if (!confirmpassword) {
-            res.status(422).json({ message: "A confirmação de senha é obrigatória" });
+        try {
+            // returns user updated data
+            await User.findOneAndUpdate(
+                { _id: user._id },
+                { $set: user },
+                { new: true }
+            );
+
+            res.status(200).json({ message: 'Usuário Atualizado com sucesso!' })
+        } catch (err) {
+            res.status(500).json({ mesage: err });
             return;
         }
-
 
     }
 }
